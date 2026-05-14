@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>东财验证码 Demo</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #1b2a41;
+      --muted: #5b6b7f;
+      --border: #d9e1ec;
+      --brand: #0c7db1;
+      --green: #1a7f4b;
+      --red: #c0392b;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 24px;
+      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+      background: radial-gradient(circle at top right, #d9f0ff 0%, var(--bg) 40%);
+      color: var(--text);
+    }
+
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .is-hidden {
+      display: none;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+    }
+
+    .hero {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .hero-copy {
+      min-width: 0;
+      flex: 1;
+    }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 42px;
+      min-width: 42px;
+      padding: 0;
+      border: 1px solid var(--border);
+      background: #f7fbff;
+      color: var(--brand);
+    }
+
+    .icon-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+
+    .sub {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: flex-end;
+    }
+
+    .field {
+      display: grid;
+      gap: 4px;
+    }
+
+    .field label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .field input[type="text"] {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      width: 200px;
+    }
+
+    .checks {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      font-size: 13px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .cookie-box {
+      margin-top: 12px;
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      background: #fafcff;
+    }
+
+    .cookie-title {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0 0 6px;
+    }
+
+    .cookie-value {
+      margin: 0;
+      font-family: "Courier New", monospace;
+      font-size: 12px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: #2c3e50;
+    }
+
+    button {
+      border: 0;
+      padding: 9px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      min-height: 42px;
+    }
+
+    .btn-primary {
+      background: var(--brand);
+      color: #fff;
+    }
+
+    .btn-danger {
+      background: var(--red);
+      color: #fff;
+    }
+
+    .btn-secondary {
+      background: #e7edf6;
+      color: var(--text);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(200px, 1fr) minmax(200px, 2fr);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .workspace > .card {
+      min-width: 0;
+    }
+
+    #divCaptcha {
+      min-height: 360px;
+      max-width: 100%;
+      overflow-x: auto;
+    }
+
+    /* ── 请求日志面板 ── */
+    #logPanel {
+      max-height: 620px;
+      overflow-y: auto;
+    }
+
+    .log-entry {
+      border-bottom: 1px solid var(--border);
+      padding: 8px 0;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+
+    .log-tag {
+      display: inline-block;
+      font-weight: 700;
+      margin-right: 6px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #fff;
+    }
+
+    .tag-req {
+      background: #2980b9;
+    }
+
+    .tag-res {
+      background: var(--green);
+    }
+
+    .tag-err {
+      background: var(--red);
+    }
+
+    .tag-info {
+      background: #7f8c8d;
+    }
+
+    .log-url {
+      font-weight: 600;
+    }
+
+    .log-detail {
+      margin-top: 4px;
+      padding: 6px 8px;
+      background: #f8f9fb;
+      border-radius: 6px;
+      white-space: pre-wrap;
+      word-break: break-all;
+      font-family: "Courier New", monospace;
+      font-size: 12px;
+      color: #2c3e50;
+    }
+
+    .log-meta {
+      color: var(--muted);
+      font-size: 11px;
+      margin-left: 4px;
+    }
+
+    @media (max-width: 760px) {
+      body {
+        padding: 12px;
+      }
+
+      .card {
+        padding: 12px;
+      }
+
+      .field,
+      .field input[type="text"] {
+        width: 100%;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .hero {
+        align-items: center;
+      }
+
+      .checks {
+        width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+
+      .actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      button {
+        width: 100%;
+        font-size: 14px;
+      }
+
+      .icon-btn {
+        width: 42px;
+      }
+
+      #logPanel {
+        max-height: 48vh;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <!-- 标题 -->
+    <section class="card">
+      <div class="hero">
+        <div class="hero-copy">
+          <h1>东财验证码 Demo</h1>
+          <p class="sub">
+            webreport代理 → 风控cookie &nbsp;|&nbsp; /api/checkuser &nbsp;|&nbsp;
+            EMCaptcha &nbsp;|&nbsp; /api/valid &nbsp;·&nbsp; 全部请求通过 axios 发送
+          </p>
+        </div>
+        <button id="refreshBtn" class="icon-btn" type="button" aria-label="刷新页面" title="刷新页面">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7a5 5 0 1 1-4.9 6h-2.02A7 7 0 1 0 17.65 6.35Z" />
+          </svg>
+        </button>
+      </div>
+    </section>
+
+    <!-- 控制栏 -->
+    <section class="card">
+      <div class="controls">
+        <div class="field">
+          <label for="appidInput">App ID</label>
+          <input id="appidInput" type="text" value="202503141611" />
+        </div>
+
+        <div class="checks" style="display: none;" >
+          <label>
+            <input id="testModeInput" type="checkbox"/>
+            测试模式 (status &lt; 0)
+          </label>
+          <label>
+            <input id="checkUserInput" type="checkbox" checked />
+            先执行 checkuser
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="startBtn" class="btn-primary">▶ 启动流程</button>
+          <button id="directKlineBtn" class="btn-primary">直接获取K线</button>
+          <button id="clearLogBtn" class="btn-secondary">清空日志</button>
+          <button id="clearCookieBtn" class="btn-danger">清理Cookie</button>
+        </div>
+      </div>
+
+      <div id="cookiePanel" class="cookie-box">
+        <p class="cookie-title">当前 Cookie（document.cookie）</p>
+        <p id="cookieText" class="cookie-value">暂无</p>
+      </div>
+    </section>
+
+    <!-- 验证码 + 日志 -->
+    <section class="workspace">
+      <section id="captchaCard" class="card is-hidden">
+        <p class="sub" style="margin-bottom:12px">验证码组件</p>
+        <div id="divCaptcha"></div>
+      </section>
+
+      <section class="card">
+        <p class="sub" style="margin-bottom:12px">网络请求日志</p>
+        <div id="logPanel"></div>
+      </section>
+    </section>
+  </main>
+
+  <!-- 依赖：jQuery（EMCaptcha 需要）、EMCaptcha（main.js） -->
+
+  <script src="https://cfgpassport5.eastmoney.com/captcha/scripts/jquery.min.js"></script>
+  <script src="https://cfgpassport5.eastmoney.com/captcha/scripts/main.js?v=20200807"></script>
+
+  <!-- 页面加载时自动获取 nid18，写入 cookie -->
+  <script src="/nid18.js"></script>
+
+  <!-- axios（CDN） -->
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.7.2/dist/axios.min.js"></script>
+
+  <!-- 业务逻辑 -->
+  <script src="/app.js"></script>
+
+</body>
+
+</html>
