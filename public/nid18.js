@@ -120,27 +120,40 @@
     return { platform: "Unknown", version: "Unknown" };
   }
 
-  // ── 组装 webreport payload ──────────────────────────────────────
+  // ── 随机字符串 ──────────────────────────────────────────────────
+  function randomStr(len) {
+    var chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    var s = "";
+    for (var i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
+    return s;
+  }
+
+  // ── 随机 hex 哈希 ────────────────────────────────────────────────
+  function randomHash() {
+    return randomStr(32);
+  }
+
+  // ── 组装 webreport payload（随机参数） ────────────────────────────
   function buildPayload() {
-    var ua = navigator.userAgent;
-    var os = detectOs(ua);
-    var lang = (navigator.language || navigator.userLanguage || "zh").split("-")[0];
-    var tz = "Asia/Shanghai";
-    try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || tz; } catch (_) {}
+    var platforms = ["Windows", "MacOS", "Linux", "Android"];
+    var versions = ["Windows 10", "Windows 11", "Mac OS X 14.5", "Mac OS X 15.2", "Linux", "Android 14"];
+    var langs = ["zh", "en", "ja", "ko", "fr", "de", "es"];
+    var timezones = ["Asia/Shanghai", "America/New_York", "Europe/London", "Asia/Tokyo", "Europe/Berlin"];
+    var resolutions = ["1920X1080", "2560X1440", "1440X900", "1366X768", "3840X2160"];
 
     return {
-      osPlatform: os.platform,
+      osPlatform: platforms[Math.floor(Math.random() * platforms.length)],
       sourceType: "WEB",
-      osversion: os.version,
-      language: lang,
-      timezone: tz,
+      osversion: versions[Math.floor(Math.random() * versions.length)],
+      language: langs[Math.floor(Math.random() * langs.length)],
+      timezone: timezones[Math.floor(Math.random() * timezones.length)],
       webDeviceInfo: {
-        screenResolution: screen.width + "X" + screen.height,
-        userAgent: ua,
-        canvasKey: getCanvasKey(),
-        webglKey: getWebglKey(),
-        fontKey: getFontKey(),
-        audioKey: getAudioKey()
+        screenResolution: resolutions[Math.floor(Math.random() * resolutions.length)],
+        userAgent: "Mozilla/5.0 (" + randomStr(8) + ") " + randomStr(6) + "/" + randomStr(4),
+        canvasKey: randomHash(),
+        webglKey: randomHash(),
+        fontKey: randomHash(),
+        audioKey: randomHash()
       }
     };
   }
@@ -168,12 +181,13 @@
         if (json.returnCode === "0" && json.data) {
           var data = json.data;
           if (data.nid) {
+            // setCookie("nid18", data.nid, 90);
             setCookie("nid18", data.nid, 90);
-            console.log("[nid18] nid18 已写入 cookie:", data.nid.slice(0, 12) + "...");
+            console.log("[nid18] nid18 已写入 cookie:", data.nid);
           }
           if (data.gvi) {
             setCookie("gviem", data.gvi, 90);
-            console.log("[nid18] gviem 已写入 cookie:", data.gvi.slice(0, 12) + "...");
+            console.log("[nid18] gviem 已写入 cookie:", data.gvi);
           }
         }
       })
