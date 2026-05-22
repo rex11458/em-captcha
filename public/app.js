@@ -409,7 +409,7 @@
         })
         .then(function (res) {
           return new Promise(function (resolve) {
-            setTimeout(resolve, 2000);
+            setTimeout(resolve, 500);
           })
             .then(function () {
               return fetchKlineData();
