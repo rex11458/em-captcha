@@ -320,8 +320,9 @@
         <div class="hero-copy">
           <h1>东财验证码 Demo</h1>
           <p class="sub">
-            webreport代理 → 风控cookie &nbsp;|&nbsp; /api/checkuser &nbsp;|&nbsp;
-            EMCaptcha &nbsp;|&nbsp; /api/valid &nbsp;·&nbsp; 全部请求通过 axios 发送
+            webreport代理 → 风控cookie &nbsp;|&nbsp; EMCaptcha &nbsp;|&nbsp; /api/valid
+            &nbsp;|&nbsp; /api/kline &nbsp;|&nbsp; /api/stock
+            &nbsp;·&nbsp; 行情/K线失败直接进入验证码（不查 block）
           </p>
         </div>
         <button id="refreshBtn" class="icon-btn" type="button" aria-label="刷新页面" title="刷新页面">
@@ -354,6 +355,7 @@
         <div class="actions">
           <button id="startBtn" class="btn-primary">▶ 启动流程</button>
           <button id="directKlineBtn" class="btn-primary">直接获取K线</button>
+          <button id="directStockBtn" class="btn-primary">直接获取stock/get</button>
           <button id="clearLogBtn" class="btn-secondary">清空日志</button>
           <button id="clearCookieBtn" class="btn-danger">清理Cookie</button>
         </div>

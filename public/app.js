@@ -10,6 +10,7 @@
   var refreshBtn = document.getElementById("refreshBtn");
   var startBtn = document.getElementById("startBtn");
   var directKlineBtn = document.getElementById("directKlineBtn");
+  var directStockBtn = document.getElementById("directStockBtn");
   var clearLogBtn = document.getElementById("clearLogBtn");
   var clearCookieBtn = document.getElementById("clearCookieBtn");
   var appidInput = document.getElementById("appidInput");
@@ -246,6 +247,25 @@
       });
   }
 
+  var STOCK_GET_FIELDS =
+    "f43,f44,f45,f46,f47,f48,f59,f60,f113,f114,f115,f168,f169,f170,f171";
+
+  /** K 线 / stock/get 响应是否视为失败（不依赖 checkuser.block） */
+  function isKlineFailure(data) {
+    if (!data || data.error) return true;
+    var rc = data.rc;
+    if (rc !== undefined && rc !== null && rc !== 0 && rc !== "0") return true;
+    var klines = data.data && data.data.klines;
+    return !klines || !klines.length;
+  }
+
+  function isStockGetFailure(data) {
+    if (!data || data.error) return true;
+    var rc = data.rc;
+    if (rc !== undefined && rc !== null && rc !== 0 && rc !== "0") return true;
+    return !data.data;
+  }
+
   /** 4. 获取 K 线数据
    *  secid 格式：市场.代码，例如 1.600519（沪市茅台）、0.000001（深市平安）
    */
@@ -264,10 +284,40 @@
         },
       })
       .then(function (r) {
-        // renderLog("info", "K线数据获取成功 secid=" + secid, r.data);
-        renderLog("info", "K线数据获取成功 secid=" + secid);
         return r.data;
       });
+  }
+
+  /** 5. 获取 push2 实时行情 stock/get（指数广度等） */
+  function fetchStockGet(secid) {
+    secid = secid || "1.000001";
+    return api
+      .get("/api/stock", {
+        params: {
+          secid: secid,
+          forcect: 1,
+          fltt: 1,
+          invt: 2,
+          mpi: 1000,
+          fields: STOCK_GET_FIELDS,
+          ut: "f057cbcbce2a86e2866ab8877db1d059",
+          wbp2u: "|0|0|0|web",
+        },
+      })
+      .then(function (r) {
+        return r.data;
+      });
+  }
+
+  function summarizeStockGet(data) {
+    var d = (data && data.data) || {};
+    return {
+      f43: d.f43,
+      f170: d.f170,
+      f113: d.f113,
+      f114: d.f114,
+      f115: d.f115,
+    };
   }
 
   /** 3. 上报验证码结果 */
@@ -335,95 +385,119 @@
   }
 
   // ──────────────────────────────────────────
+  // 验证码流程（不查 checkuser.block）
+  // ──────────────────────────────────────────
+  function runCaptchaFlow(fetchFn, label) {
+    var appid = appidInput.value.trim();
+    var testMode = testModeInput.checked;
+    var browserId = getCookie("qgqp_b_id") || "";
+
+    return getContextId(browserId)
+      .then(function (contextId) {
+        renderLog("info", label + " → 获取 contextId 成功", {
+          contextId: contextId,
+        });
+        return showCaptcha(appid, testMode, contextId).then(function (validate) {
+          return { contextId: contextId, validate: validate };
+        });
+      })
+      .then(function (captchaResult) {
+        var validatePayload = (captchaResult && captchaResult.validate) || {};
+        var contextIdForReport =
+          captchaResult.contextId ||
+          validatePayload.contextId ||
+          validatePayload.contextid ||
+          "";
+        var validateToken = validatePayload.validate || "";
+
+        renderLog("info", label + " → 上报 valid", {
+          contextId: contextIdForReport,
+          validateLength: validateToken ? String(validateToken).length : 0,
+        });
+
+        return reportValid(contextIdForReport, validateToken);
+      })
+      .then(function (res) {
+        renderLog("info", label + " → valid 上报成功", res);
+        setCaptchaVisible(false);
+        return new Promise(function (resolve) {
+          setTimeout(resolve, 500);
+        });
+      })
+      .then(function () {
+        return fetchFn();
+      });
+  }
+
+  /** 先请求行情/K线；失败则直接进入验证码并重试（跳过 checkuser） */
+  function fetchWithCaptchaRetry(fetchFn, isFailure, label) {
+    return fetchFn()
+      .then(function (data) {
+        if (!isFailure(data)) {
+          renderLog("info", label + " 成功，无需验证码", data);
+          return data;
+        }
+        throw new Error(label + " 响应无效");
+      })
+      .catch(function (err) {
+        renderLog("info", label + " 失败，直接进入验证码（不检测 block）", {
+          message: err.message,
+        });
+        setCaptchaVisible(false);
+        divCaptcha.innerHTML = "";
+        return runCaptchaFlow(fetchFn, label).then(function (data) {
+          if (isFailure(data)) {
+            throw new Error(label + " 验证码通过后仍失败");
+          }
+          renderLog("info", label + " 验证后重试成功", data);
+          return data;
+        });
+      });
+  }
+
+  /** 启动流程：K 线 + stock/get 一并拉取 */
+  function fetchWorkflowData() {
+    return fetchKlineData("1.600519").then(function (klineData) {
+      if (isKlineFailure(klineData)) {
+        throw new Error("K线 响应无效");
+      }
+      renderLog("info", "K线 成功", {
+        secid: "1.600519",
+        bars: klineData.data.klines.length,
+      });
+      return fetchStockGet("1.000001").then(function (stockData) {
+        if (isStockGetFailure(stockData)) {
+          throw new Error("stock/get 响应无效");
+        }
+        renderLog("info", "stock/get 成功", summarizeStockGet(stockData));
+        return { kline: klineData, stock: stockData };
+      });
+    });
+  }
+
+  function isWorkflowFailure(data) {
+    if (!data) return true;
+    return isKlineFailure(data.kline) || isStockGetFailure(data.stock);
+  }
+
+  // ──────────────────────────────────────────
   // 主流程
   // ──────────────────────────────────────────
   function runWorkflow() {
-    var appid = appidInput.value.trim();
-    var testMode = testModeInput.checked;
-    var doCheck = checkUserInput.checked;
-    var browserId = getCookie("qgqp_b_id") || "";
-
-    renderLog("info", "workflow 启动", {
-      appid: appid,
-      testMode: testMode,
-      checkUser: doCheck,
-      browserIdReady: !!browserId,
-    });
-
-    var flow = Promise.resolve(null);
-
-    // Step 1: checkuser（可选）
-    if (doCheck) {
-      flow = flow
-        .then(function () {
-          return checkUser();
-        })
-        .then(function (res) {
-          if (!res.block) {
-            renderLog("info", "checkuser: 未 block，跳过验证码，直接获取K线");
-            return fetchKlineData().then(function () {
-              return { skipped: true };
-            });
-          }
-          renderLog("info", "checkuser: 已 block，进入验证码流程");
-          return null;
+    renderLog("info", "workflow 启动：K线 + stock/get，失败则验证码（不查 block）");
+    fetchWithCaptchaRetry(fetchWorkflowData, isWorkflowFailure, "K线+stock/get")
+      .then(function (data) {
+        renderLog("info", "workflow 完成", {
+          klineSecid: "1.600519",
+          klineBars: data.kline.data.klines.length,
+          stockSecid: "1.000001",
+          stock: summarizeStockGet(data.stock),
         });
-    }
-
-    // Step 2: 验证码流程（getcontextid → EMCaptcha → valid）
-    flow = flow.then(function (prev) {
-      if (prev && prev.skipped) {
-        renderLog("info", "workflow 结束（未触发验证码）");
-        return prev;
-      }
-
-      return getContextId(browserId)
-        .then(function (contextId) {
-          renderLog("info", "contextId 获取成功", { contextId: contextId });
-          return showCaptcha(appid, testMode, contextId).then(
-            function (validate) {
-              return { contextId: contextId, validate: validate };
-            },
-          );
-        })
-        .then(function (captchaResult) {
-          var validatePayload = (captchaResult && captchaResult.validate) || {};
-          var contextIdForReport =
-            captchaResult.contextId ||
-            validatePayload.contextId ||
-            validatePayload.contextid ||
-            "";
-          var validateToken = validatePayload.validate || "";
-
-          renderLog("info", "准备上报 valid", {
-            contextId: contextIdForReport,
-            validateLength: validateToken ? String(validateToken).length : 0,
-          });
-
-          return reportValid(contextIdForReport, validateToken);
-        })
-        .then(function (res) {
-          renderLog("info", "valid 上报成功", res);
-          setCaptchaVisible(false);
-          return res;
-        })
-        .then(function (res) {
-          return new Promise(function (resolve) {
-            setTimeout(resolve, 500);
-          })
-            .then(function () {
-              return fetchKlineData();
-            })
-            .then(function () {
-              return res;
-            });
-        });
-    });
-
-    flow.catch(function (err) {
-      setCaptchaVisible(false);
-      renderLog("err", "workflow 异常", { message: err.message });
-    });
+      })
+      .catch(function (err) {
+        setCaptchaVisible(false);
+        renderLog("err", "workflow 异常", { message: err.message });
+      });
   }
 
   // ──────────────────────────────────────────
@@ -462,11 +536,35 @@
 
   if (directKlineBtn) {
     directKlineBtn.addEventListener("click", function () {
-      setCaptchaVisible(false);
       renderLog("info", "直接获取K线", { secid: "1.600519" });
-      fetchKlineData().catch(function (err) {
+      fetchWithCaptchaRetry(
+        function () {
+          return fetchKlineData("1.600519");
+        },
+        isKlineFailure,
+        "K线",
+      ).catch(function (err) {
         renderLog("err", "直接获取K线失败", { message: err.message });
       });
+    });
+  }
+
+  if (directStockBtn) {
+    directStockBtn.addEventListener("click", function () {
+      renderLog("info", "直接获取 stock/get", { secid: "1.000001" });
+      fetchWithCaptchaRetry(
+        function () {
+          return fetchStockGet("1.000001");
+        },
+        isStockGetFailure,
+        "stock/get",
+      )
+        .then(function (data) {
+          renderLog("info", "stock/get 摘要", summarizeStockGet(data));
+        })
+        .catch(function (err) {
+          renderLog("err", "直接获取 stock/get 失败", { message: err.message });
+        });
     });
   }
 

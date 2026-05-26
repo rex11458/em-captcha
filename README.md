@@ -55,6 +55,12 @@ npm run dev
 - `express`
 - `axios`
 
-## 备注
+## 代理接口
 
-项目当前为精简版结构，适合作为本地接口代理、前端调试和基础网络请求流程的学习示例。
+| 路由 | 上游 | 说明 |
+|------|------|------|
+| `GET /api/kline` | push2his …/kline/get | K 线 |
+| `GET /api/stock` | push2 …/stock/get | 实时行情（指数广度 f113–115 等） |
+| `GET /api/checkuser` | 东财 checkuser | 供 auto-trade 轮询 block（页面按钮不依赖） |
+
+页面按钮 **▶ 启动流程**：依次拉 K 线 + stock/get；**直接获取K线** / **直接获取stock/get**：单独测试。失败均 **直接进入验证码**（不查 `block` true/false），验证通过后自动重试。

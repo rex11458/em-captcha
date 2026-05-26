@@ -315,31 +315,61 @@ app.post("/api/valid", express.urlencoded({ extended: true }), async (req, res) 
 // GET /api/kline
 //   代理东财 K 线数据，转发至 push2his.eastmoney.com
 // ──────────────────────────────────────────
-app.get("/api/kline", async (req, res) => {
-  try {
-    const upstream = await axios.get("https://push2his.eastmoney.com/api/qt/stock/kline/get", {
-      params: req.query,
-      headers: {
-        ...clientCookies(req, res),
-        "User-Agent": req.headers["user-agent"] || "Mozilla/5.0",
-        "Referer":    "https://quote.eastmoney.com/"
-      },
-      responseType: "text"
-    });
-
+function proxyQuoteGet(path, upstreamUrl, tag, req, res) {
+  return axios.get(upstreamUrl, {
+    params: req.query,
+    headers: {
+      ...clientCookies(req, res),
+      "User-Agent": req.headers["user-agent"] || "Mozilla/5.0",
+      "Referer": "https://quote.eastmoney.com/",
+    },
+    responseType: "text",
+  }).then((upstream) => {
     forwardSetCookie(req, res, upstream.headers);
-    log("kline", "GET", "/api/kline", upstream.status);
-
-    // 上游可能返回 JSONP，优先尝试解析
+    log(tag, "GET", path, upstream.status);
     const parsed = parseJsonp(upstream.data);
     if (parsed) {
       res.json(parsed);
     } else {
-      res.set("Content-Type", upstream.headers["content-type"] || "application/json").send(upstream.data);
+      res
+        .set("Content-Type", upstream.headers["content-type"] || "application/json")
+        .send(upstream.data);
     }
+  });
+}
+
+app.get("/api/kline", async (req, res) => {
+  try {
+    await proxyQuoteGet(
+      "/api/kline",
+      "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+      "kline",
+      req,
+      res,
+    );
   } catch (err) {
     const status = err.response?.status ?? 502;
     console.error("[kline] error:", err.message);
+    res.status(status).json({ error: err.message });
+  }
+});
+
+// ──────────────────────────────────────────
+// GET /api/stock
+//   代理东财 push2 实时行情 stock/get（指数广度 f113–115 等）
+// ──────────────────────────────────────────
+app.get("/api/stock", async (req, res) => {
+  try {
+    await proxyQuoteGet(
+      "/api/stock",
+      "https://push2.eastmoney.com/api/qt/stock/get",
+      "stock",
+      req,
+      res,
+    );
+  } catch (err) {
+    const status = err.response?.status ?? 502;
+    console.error("[stock] error:", err.message);
     res.status(status).json({ error: err.message });
   }
 });
