@@ -13,6 +13,11 @@ const embeddedPublicAssets = global.__PUBLIC_ASSETS__ || null;
 const CAPTCHA_BASE = "https://i.eastmoney.com/websitecaptcha/api";
 const EWT_BASE     = "https://anonflow2.eastmoney.com";
 const PROXY_SESSION_COOKIE = "em_proxy_sid";
+const SHARE_SESSION_COOKIES = 1;// process.env.SHARE_SESSION_COOKIES === "1";
+const SHARED_SESSION_ID = "shared";
+const DEFAULT_BROWSER_UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
+const UPSTREAM_COOKIE_KEYS = ["nid18", "gviem", "qgqp_b_id", "st_nvi"];
 const proxyCookieStore = new Map();
 const RANDOM_CHARSET = "useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict";
 
@@ -90,19 +95,23 @@ function buildStNvi() {
   return seed + sha256Hex(seed).slice(0, 4);
 }
 
-/** 为每个浏览器分配本地 sid，并在服务端持久化上游 cookie */
+/** 为每个浏览器分配本地 sid，并在服务端持久化上游 cookie；SHARE_SESSION_COOKIES=1 时全员共用 */
 function getProxySession(req, res) {
   if (req._proxySession) return req._proxySession;
 
   const requestCookies = parseCookieHeader(req.headers.cookie || "");
-  let sid = requestCookies[PROXY_SESSION_COOKIE];
+  let sid = SHARE_SESSION_COOKIES
+    ? SHARED_SESSION_ID
+    : requestCookies[PROXY_SESSION_COOKIE];
 
   if (!sid) {
-    sid = crypto.randomUUID();
-    res.append(
-      "Set-Cookie",
-      `${PROXY_SESSION_COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`
-    );
+    sid = SHARE_SESSION_COOKIES ? SHARED_SESSION_ID : crypto.randomUUID();
+    if (!SHARE_SESSION_COOKIES) {
+      res.append(
+        "Set-Cookie",
+        `${PROXY_SESSION_COOKIE}=${sid}; Path=/; HttpOnly; SameSite=Lax; Max-Age=86400`
+      );
+    }
   }
 
   let session = proxyCookieStore.get(sid);
@@ -118,11 +127,40 @@ function getProxySession(req, res) {
   return session;
 }
 
+/** curl 等客户端 UA 不适合直连东财，行情代理统一用浏览器 UA */
+function upstreamUserAgent(req) {
+  const ua = String(req.headers["user-agent"] || "").trim();
+  if (!ua || /^curl\//i.test(ua)) return DEFAULT_BROWSER_UA;
+  return ua;
+}
+
+/** 将关键 cookie 写入服务端会话，供共享模式与 curl 复用 */
+function persistSessionCookies(session, cookies) {
+  UPSTREAM_COOKIE_KEYS.forEach((key) => {
+    const value = cookies[key];
+    if (value) session.cookies[key] = value;
+  });
+}
+
+/** webreport 响应体含 nid/gvi，不在 Set-Cookie 里 */
+function persistWebreportBodyCookies(session, body) {
+  try {
+    const json = JSON.parse(Buffer.from(body).toString("utf8"));
+    if (json.returnCode === "0" && json.data) {
+      if (json.data.nid) session.cookies.nid18 = json.data.nid;
+      if (json.data.gvi) session.cookies.gviem = json.data.gvi;
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 /** 组装上游请求 Cookie：浏览器请求头 + 服务端会话缓存 */
 function clientCookies(req, res) {
   const session = getProxySession(req, res);
   const requestCookies = { ...(req._proxySessionRequestCookies || {}) };
   delete requestCookies[PROXY_SESSION_COOKIE];
+  persistSessionCookies(session, requestCookies);
 
   const merged = { ...session.cookies, ...requestCookies };
   const pairs = Object.keys(merged).map((k) => `${k}=${merged[k]}`);
@@ -198,6 +236,7 @@ app.post(
       });
 
       forwardSetCookie(req, res, upstream.headers);
+      persistWebreportBodyCookies(session, upstream.data);
       log("webreport", "POST", "/backend/api/webreport", upstream.status);
       res
         .status(upstream.status)
@@ -320,7 +359,7 @@ function proxyQuoteGet(path, upstreamUrl, tag, req, res) {
     params: req.query,
     headers: {
       ...clientCookies(req, res),
-      "User-Agent": req.headers["user-agent"] || "Mozilla/5.0",
+      "User-Agent": upstreamUserAgent(req),
       "Referer": "https://quote.eastmoney.com/",
     },
     responseType: "text",
@@ -412,4 +451,7 @@ app.get("/api/stock", async (req, res) => {
 // ──────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`[server] http://localhost:${PORT}`);
+  if (SHARE_SESSION_COOKIES) {
+    console.log("[server] SHARE_SESSION_COOKIES=1, all requests share upstream cookies");
+  }
 });
