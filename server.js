@@ -355,8 +355,43 @@ app.get("/api/kline", async (req, res) => {
 });
 
 // ──────────────────────────────────────────
-// GET /api/stock
-//   代理东财 push2 实时行情 stock/get（指数广度 f113–115 等）
+// GET /api/quote
+//   通用 push2 / push2his GET 代理（ulist / slist / updown 等）
+//   参数: host=push2|push2his, path=/api/qt/... , 其余 query 原样转发
+// ──────────────────────────────────────────
+app.get("/api/quote", async (req, res) => {
+  const hostKey = String(req.query.host || "").trim();
+  const pathname = String(req.query.path || "").trim();
+  const bases = {
+    push2: "https://push2.eastmoney.com",
+    push2his: "https://push2his.eastmoney.com",
+  };
+  const base = bases[hostKey];
+  if (!base || !pathname.startsWith("/api/")) {
+    return res.status(400).json({ error: "invalid host or path" });
+  }
+  const forwardQuery = { ...req.query };
+  delete forwardQuery.host;
+  delete forwardQuery.path;
+  const savedQuery = req.query;
+  req.query = forwardQuery;
+  try {
+    await proxyQuoteGet(
+      "/api/quote",
+      `${base}${pathname}`,
+      "quote",
+      req,
+      res,
+    );
+  } catch (err) {
+    const status = err.response?.status ?? 502;
+    console.error("[quote] error:", err.message);
+    res.status(status).json({ error: err.message });
+  } finally {
+    req.query = savedQuery;
+  }
+});
+
 // ──────────────────────────────────────────
 app.get("/api/stock", async (req, res) => {
   try {
