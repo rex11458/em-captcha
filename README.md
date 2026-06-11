@@ -19,14 +19,32 @@
 
 ```text
 .
+├── deploy/
+│   ├── publish-sim-portfolio.sh
+│   └── sync-sim-portfolio-web.sh
 ├── package.json
 ├── server.js
 └── public/
     ├── app.js
     ├── index.html
     ├── main.js
-    └── nid18.js
+    ├── nid18.js
+    └── sim-portfolio/
+        ├── index.html
+        └── 10000000000331019/
 ```
+
+## 模拟组合策略报告（静态页）
+
+由 auto-trade 生成后发布到 `public/sim-portfolio/`：
+
+```bash
+./deploy/publish-sim-portfolio.sh
+./deploy/sync-sim-portfolio-web.sh          # 同步到远程 106.14.189.80:9001
+./deploy/sync-sim-portfolio-web.sh --with-server   # 含 server.js 更新并 pm2 restart
+```
+
+访问：`http://localhost:9001/sim-portfolio/10000000000331019/`
 
 ## 运行方式
 
@@ -48,7 +66,7 @@ npm start
 npm run dev
 ```
 
-默认会启动在 `http://localhost:8080`，如需修改端口，可设置 `PORT` 环境变量。
+默认会启动在 `http://localhost:9001`，如需修改端口，可设置 `PORT` 环境变量。
 
 ## 依赖
 

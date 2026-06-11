@@ -6,7 +6,7 @@ const crypto = require("crypto");
 const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 9001;
 const embeddedPublicAssets = global.__PUBLIC_ASSETS__ || null;
 
 // 上游地址
@@ -34,6 +34,7 @@ function getContentType(filePath) {
     case ".gif": return "image/gif";
     case ".ico": return "image/x-icon";
     case ".txt": return "text/plain; charset=utf-8";
+    case ".parquet": return "application/octet-stream";
     default: return "application/octet-stream";
   }
 }
